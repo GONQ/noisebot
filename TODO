@@ -1,0 +1,9 @@
+- create option to generate messages from PyBitmessage classes instead of api
+
+- create option to hook into bitmessagemain.py instead of apinotify path
+
+- create a thread that will exit gracefully on PyBitmessage shutdown
+
+- create option to generate valid message objects without using chan addresses
+
+- install wizard with options selection

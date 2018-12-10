@@ -33,20 +33,33 @@ After the first run noisebot will run in the background when Bitmessage is runni
 Use is subject to the SSSS License included herewith. Licensee may choose between MIT, BSD, and Apache licenses. See LICENSE for details.
 '''
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import os
 import time
 import sys
 import threading
 import random
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # define a hard exit function
 
 def die():
-    os._exit(0)
+    raise SystemExit
+    os._exit(0) # make sure!
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def wait(secs):
+   time.sleep(secs)
+
+# If Bitmessage is calling the script, restart in a shell without sys.argv
+print "(noisebot)(command)",
+print sys.argv
+
+if "NOARGV" not in sys.argv:
+    import subprocess as spawn
+    boot = spawn.Popen('./noisebot.py NOARGV', shell=True) #, stdout=spawn.PIPE, stderr=spawn.PIPE)
+    print "(noisebot)(bitmessage) apinotify path call - restarting in shell."
+    print "(noisebot)(noargv)(spawn)", str(boot)
+    wait(0.25)
+    die()
+
 # check for bitmessage installation in same folder
 
 if not os.path.isfile("bitmessagemain.py"):
@@ -54,71 +67,72 @@ if not os.path.isfile("bitmessagemain.py"):
     print "(noisebot)(error) noisebot.py must be in bitmessage /src/ directory to run."
     print "(noisebot)(error) cannot proceed. exiting."
     die()
-        
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 # before running check and get the file lock to prevent multiple instances.
 # rather than messing with pids and os-level stuff, just use a time lock file.
 # this function runs only once per instance and instance dies on fail
 
 def checklock():
-    if os.path.isfile("wait.lock"):
-        lockfile1 = "wait.lock"
+    print "(noisebot)(checklock)"
+    if os.path.isfile("noisebot.time.lock"):
+        print "(noisebot)(checklock) existing lockfile found."
+        lockfile1 = "noisebot.time.lock"
 
         lockx = open(lockfile1, 'r')
         clock1 = lockx.read()
         lockx.close()
-        
-        now = time.time()
-        sched = float(clock1)
 
-        if now - sched < 5:
-            print "(noisebot) ANOTHER INSTANCE OF NOISEBOT IS RUNNING. EXITING."
-            print "(noisebot)(exit) [+]"
+        print "(noisebot)(checklock)(locktime)", str(clock1)
+
+        now = time.time()
+        print "(noisebot)(checklock)(timestamp)", str(now)
+        sched = float(clock1)
+        print "(noisebot)(checklock)(timestamp - locktime)", str(now - sched)
+        if now - sched < 1:
+            print "(noisebot)(checklock) ANOTHER INSTANCE OF NOISEBOT IS RUNNING. EXITING."
+            print "(noisebot)(checklock)(exit) [+]"
             die()
         else:
-            print "(noisebot) NO OTHER INSTANCE DETECTED. RUNNING THE LOCK THREAD."
+            print "(noisebot)(checklock) NO OTHER INSTANCE DETECTED. RUNNING LOCK THREAD."
 
 checklock()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def timelock(sched_time):
 
     clock = str(sched_time)
-    lockfile1 = "wait.lock"
+    lockfile1 = "noisebot.time.lock"
     lox = open(lockfile1, 'w')
     lox.write(clock)
-    print "(noisebot) LOCK IS ACTIVE.", clock
-    
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    print "(noisebot)(timelock) LOCK IS ACTIVE.", clock
+
 # grab the initial lock right away before any wait() execution
 def lockthread():
-  timelock(time.time() + 30)
+    locktime = time.time() + 1
+    print "(noisebot)(lockthread)", str(locktime)
+    timelock(locktime)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
 def unlock():
-    lockfile = "wait.lock"
-    os.remove(lockfile)
-    print "(noisebot)(unlock) removed lockfile."
-    
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    lockfile = "noisebot.time.lock"
+    if os.path.isfile(lockfile):
+        os.remove(lockfile)
+        print "(noisebot)(unlock) removed lockfile."
+    else:
+        print "(noisebot)(unlock) no lockfile detected."
+
 def waitlock():
     sched_time = time.time()
-    secs = rnd(120, 300)
+    secs = rnd(90, 360)
     sched_time += secs
-    sched_time += 5
+    sched_time += 60
     timelock(sched_time)
-    print "(noisebot)(waitlock) ",
-    print secs, "seconds"
+    print "(noisebot)(waitlock) ", str(secs), "seconds"
     wait(secs)
     print "(noisebot)(waitlock) done."
-    
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# play nice with Bitmessage - only run if newMessage signal sent
 
-if "newMessage" in sys.argv:
+# play nice with Bitmessage - only run if locked shell signal sent
+
+if "NOARGV" in sys.argv:
     lockthread()
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 from bmconfigparser import BMConfigParser
 from random import randrange as rnd
@@ -134,9 +148,8 @@ import api
 import sys
 import os
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # some globals since this script will not be imported
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 global defaultDifficulty
 defaultDifficulty = "1000"
 
@@ -151,21 +164,14 @@ os.chdir(app_dir)
 print "(noisebot)(app dir) ", app_dir
 print "(noisebot)(file) ", __file__
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # check if counter file exists
 if not os.path.isfile("noisebot_counter.txt"):
     countfile = open("noisebot_counter.txt", "w")
     countfile.write("0")
     countfile.close()
-    print ""
-    print "created new file noisebot_counter.txt"
-    print ""
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def wait(secs):
-   time.sleep(secs)
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
+    print "(noisebot)(counter) created new file noisebot_counter.txt"
+else:
+    print "(noisebot)(counter) noisebot_counter.txt detected."
 def findKeysFolder(): # Ref. {PyBitmessage/bminterface.py}
     import sys
     APPNAME = "PyBitmessage"
@@ -185,7 +191,6 @@ def findKeysFolder(): # Ref. {PyBitmessage/bminterface.py}
         dataFolder = path.expanduser(path.join("~", "." + "config", APPNAME + "/"))
     return dataFolder
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def getApiString():
     global keysPath
     config = ConfigParser.SafeConfigParser()
@@ -204,7 +209,6 @@ def getApiString():
             config.get('bitmessagesettings','settingsversion')
         except:
             # keys.dat not there either. something is wrong.
-            drawHeader()
             print ' '
             print '+--------------------------------------------------------------------+'
             print '|      noisebot is unable to access the Bitmessage keys.dat file.     |'
@@ -229,24 +233,26 @@ def getApiString():
         apiPassword = config.get('bitmessagesettings', 'apipassword')
     except:
         print '(noisebot)(error) unable to access keys.dat'
+    try:
+        apiTTL = config.get('bitmessagesettings', 'ttl')
+    except:
+        print '(noisebot)(error) unable to access keys.dat'
     apiString = "http://" + apiUsername + ":" + apiPassword + "@" + apiInterface+ ":" + str(apiPort) + "/"
-    return apiString
+    return apiString, int(apiTTL)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # set api URL
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-api_string = getApiString()
+
+api_string, apiTTL = getApiString()
 
 print "(noisebot)(api string) ", api_string
 
 api = xmlrpclib.ServerProxy(api_string)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # begin install wizard
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def apiData():
     global keysPath
-        
+
     config = ConfigParser.SafeConfigParser()
     keysPath = 'keys.dat'
     config.read(keysPath) # first try to load keys.dat from source directory.
@@ -265,7 +271,6 @@ def apiData():
             config.get('bitmessagesettings','settingsversion')
         except:
             # keys.dat not there either. something is wrong.
-            drawHeader()
             print ' '
             print '+--------------------------------------------------------------------+'
             print '|      noisebot is unable to access the Bitmessage keys.dat file.     |'
@@ -282,9 +287,8 @@ def apiData():
         print "(noisebot)(error) API is disabled. Enable the Bitmessage API to use noisebot."
         exit()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # keys.dat found. retrieve data.
-# if any setting is null, false, or incorrect, increment a boolean match, to ensure setup runs.
+# if any setting is null, false, or incorrect flag a boolean to make setup run.
 
     misconfigured = False
     try:
@@ -315,9 +319,8 @@ def apiData():
         print "(noisebot)(error) API configuration error. exiting."
         exit()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Check apinotifypath in keys.dat
-noisebotPath = os.path.abspath(__file__)
+noisebotPath = os.path.abspath((__file__))
 print "(noisebot)(noisebot path) ", noisebotPath
 print "(noisebot)(apinotify path)(checking)"
 
@@ -326,22 +329,19 @@ if not os.path.isfile("keys.dat"):
 else:
     keysdatdir = app_dir
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # read current file to var
 thisFile = os.path.abspath(__file__)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #remove trailing slash to get consistent output for concatenation
 if keysdatdir[-1] == "/":
     keysdatdir = keysdatdir[0:-1]
-    
+
 print "(noisebot)(keys.dat) ", keysdatdir
 
 keysdatfile = keysdatdir + "/keys.dat"
 
 print "(noisebot)(keysdatfile)", keysdatfile
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # check apinotifypath configuration in keys.dat
 f = open(keysdatfile, 'r')
 try:
@@ -352,9 +352,9 @@ except:
 notifystring = "\napinotifypath = "
 notifystring += thisFile
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # append noisebot apinotify path to keys.dat
 
+print "(noisebot)(notify string) checking apinotify path in keys.dat"
 if notifystring not in contents:
     f = open(keysdatfile, 'a')
     f.write("\n")
@@ -375,20 +375,7 @@ else:
 
 # begin noisebot routine
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# play nice with Bitmessage - only run if newMessage signal sent
-
-if "newMessage" not in sys.argv:
-    print "(noisebot) the bot will run when the first new message arrives."
-    print "(noisebot) (exit) [+]"
-    die()
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
-# pause before every run
-waitlock()
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# randomly assemble a global passphrase for the temporary chan
+# characters for passphrase
 
 chan_chars = [
                 "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
@@ -398,7 +385,6 @@ chan_chars = [
                 "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
                 ]
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Build a random chan passphrase from the chan_chars
 len_chan_chars = len(chan_chars)
 
@@ -408,22 +394,19 @@ for incr in range (0, 40):
     slot = rnd(0, len_chan_chars)
     chosen_char = chan_chars[slot]
     chan_name += chosen_char
-    
+
 globalPassPhrase = chan_name
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # store chan names in a file for cleanup (in case of sigkill or shutdown)
 
 chanfile = open("noisebot_chans.txt", 'a')
 chanfile.write("\n" + chan_name)
 chanfile.close()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# create a subject prefix for final message deletion to clear junk messages
+# create a subject prefix for final message deletion to clear orphaned messages
 
 globalSubjectPrefix = "//// noisebot ////"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # push values to stdout
 
 print "(noisebot)(chan chars) ", chan_chars
@@ -431,8 +414,7 @@ print "(noisebot)(global passphrase) ", globalPassPhrase
 print "(noisebot)(global subject prefix) ", globalSubjectPrefix
 print "(noisebot)(api_string) ", api_string
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ensure we can connect to the Bitmessage API, hard exit on failure
+# ensure we can connect to the Bitmessage API, die hard exit on failure
 def apiTest():
     try:
         result = api.add(4,5)
@@ -447,14 +429,12 @@ def apiTest():
         print "(noisebot) bitmessage API error. is bitmessage running?. exiting."
         die()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # exit if api test fails
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 apiTest()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
 # create the noisebot address to guarantee availability
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def checkBotAddress(noisebotAddressPassphrase):
     try:
         passphrase = noisebotAddressPassphrase.encode('base64')
@@ -467,7 +447,6 @@ def checkBotAddress(noisebotAddressPassphrase):
         api.statusBar("(noisebot) checking noisebot address.")
     return checkphrase
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 noisebotAddressPassphrase = globalPassPhrase
 checkphrase = checkBotAddress(noisebotAddressPassphrase)
 api.statusBar("(noisebot) checking if noisebot address exists.")
@@ -484,20 +463,17 @@ elif checkphrase != "":
     api.statusBar("(noisebot) [ ERROR 01 ] exiting.")
     die()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
 def getAddress(passphrase):
     passphrase = passphrase.encode('base64')
     return api.getDeterministicAddress(passphrase, 4, 1)
     api.statusBar("(noisebot) getting noisebot address.")
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def totalcount():
     count = open("noisebot_counter.txt", 'r')
     hist_count = count.read()
     count.close()
     print "(noisebot)(historical count) {", str(hist_count), "} messages"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
 def sendMsg():
     delMsg0()
     global globalSubjectPrefix
@@ -513,14 +489,21 @@ def sendMsg():
     sub = globalSubjectPrefix
     sub += " "
     sub += str(urand(15).encode('base64'))[0:12]
-    print "(noisebot)(message) composing message."    
+    print "(noisebot)(message) composing message."
     fromaddress = getAddress(globalPassPhrase)
     print "(noisebot)(message)(address) ", fromaddress
     toaddress = fromaddress
     print "(noisebot)(message)(sample) ", msg[0:40]
     message = msg.encode('base64')
     subject = sub.encode('base64')
-    ttl = rnd(345600, 367200) # time to live between 1 hour to 4 days
+    ttl = apiTTL # get value from keys.dat
+    ttl_switch = rnd(0,2) # plus or minus
+    ttl_random = rnd(0, 300) # random bump to ttl
+    if ttl_switch == 0:
+        ttl -= ttl_random
+    else:
+        ttl += ttl_random
+    print "(noisebot)(ttl) ", str(ttl)
     try:
         api.sendMessage(toaddress, fromaddress, subject, message, 2, ttl)
         countfile = open("noisebot_counter.txt", "r")
@@ -533,9 +516,8 @@ def sendMsg():
         totalcount()
     except:
         print "(noisebot)(error)(api error) could not send msg."
-    
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# loop to delete all inbox messages of the current globalPassPhrase    
+
+# loop to delete all inbox messages of the current globalPassPhrase
 def delMsg0():
     global api
     global globalPassPhrase
@@ -546,17 +528,16 @@ def delMsg0():
     print "(noisebot)(number of inbox msgs) {", numMessages, "}"
     if (numMessages > 0):
         for incr in range (0, numMessages):
-        
+
             # Get the msgid of the first message, which is a hex number.
             msgID = inboxMessages['inboxMessages'][incr]['msgid'] #was 0 #[incr]
-            print "(noisebot)(delete) ", str(msgID)[:55]       
+            print "(noisebot)(delete) ", str(msgID)[:55]
             api.trashMessage(msgID)
-            
+
             # delete message notification
             print "(noisebot)(message deleted) {", numMessages, "}"
             return "message deleted."
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # loop to delete all inbox messages with noisebot prefix in subject
 def delMsg1():
     global api
@@ -566,19 +547,18 @@ def delMsg1():
     print "(noisebot)(number of inbox msgs) {", numMessages, "}"
     if (numMessages > 0):
         for incr in range (0, numMessages):
-        
+
             # Get the msgid of the first message, which is a hex number.
             msgID = inboxMessages['inboxMessages'][incr]['msgid'] #was 0 #[incr]
             subject = inboxMessages['inboxMessages'][incr]['subject'].decode('base64')
             if globalSubjectPrefix in subject:
                 print "[[[ delMsg1 ]]] ", subject
-                print "(noisebot)(delete) ", str(msgID)[:55]       
+                print "(noisebot)(delete) ", str(msgID)[:55]
                 api.trashMessage(msgID)
-                
+
                 # delete message notification
                 print "(noisebot)(message deleted) {", numMessages, "}"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def delSentMsg0():
     global api
     global globalPassPhrase
@@ -589,38 +569,36 @@ def delSentMsg0():
     print "(noisebot)(number of sent msgs) {", numMessages, "}"
     if (numMessages > 0):
         for incr in range (0, numMessages):
-        
+
             # Get the msgid of the first message, which is a hex number.
             subject = sentMessages['sentMessages'][incr]['subject']
             print "(noisebot) sent subject: ", subject
             msgID = sentMessages['sentMessages'][incr]['msgid']
             if globalSubjectPrefix in subject:
-                print "(noisebot)(delete) ", str(msgID)[:55]      
+                print "(noisebot)(delete) ", str(msgID)[:55]
                 api.trashMessage(msgID)
-                
+
                 # delete message notification
                 print "(noisebot)(message deleted) {", numMessages, "}"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # choose a random number of consecutive messages for this script instance
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-randomruns = rnd(1, 9)
-print "(noisebot)(random runs) {", str(randomruns), "} messages"
+
+randomruns = rnd(1, 6)
+print "(noisebot)(random runs) {", str(randomruns), "} rounds"
 for incr in (0, randomruns):
-    waitlock()
-    sendMsg()
-    waitlock()
-    delSentMsg0()
+    msgbatch = rnd(1, 4)
+    print "(noisebot)(message batch) {", msgbatch, "} messages"
+    for incr in range (0, msgbatch):
+        sendMsg()
     waitlock()
     delMsg0()
+    delMsg1()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # read counter to variable
 countfile = open("noisebot_counter.txt", "r")
 lastcount = int(countfile.read())
 countfile.close()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # pause before exit - repeat waitlock a random number of times
 print "(noisebot)(final cleanup pause)"
 exitDelayLoops = rnd(1, 4)
@@ -629,27 +607,24 @@ for incr in range (0, exitDelayLoops):
     waitlock()
 print ""
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# count total noise messages sent   
+# count total noise messages sent
 countfile = open("noisebot_counter.txt", "r")
 noisecount = countfile.read()
 countfile.close()
 print "(noisebot)(noise message count) {", noisecount, "}"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# delete the randomly created chan and messages
-#wait(30)
-print "deleting temporary chan (", globalPassPhrase, ")"
-print "(noisebot)(message deletion)"
-
-delSentMsg0()
+print "(noisebot)(purge) delete fake messages."
 delMsg0()
 delMsg1()
+delSentMsg0()
+
+# delete the randomly created chan and messages
+print "deleting temporary chan (", globalPassPhrase, ")"
+print "(noisebot)(message deletion)"
 
 print "(noisebot)(delete chan) "
 api.deleteAddress(checkphrase)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # delete orphaned chans from chanfile
 
 print "(noisebot)(chanfile) removing temporary and orphaned chans."
@@ -669,17 +644,13 @@ chanx.write("")
 chanx.close()
 print "(noisebot)(chanfile) done."
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # output total number of historical noise messages
 
 totalcount()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # final stdout notices
 print "(noisebot)(run complete) [+]"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # remove the timelock before restarting script
 
 print "(noisebot)(unlock) removing time file."
@@ -687,10 +658,11 @@ unlock()
 
 print "(noisebot)(finish) : noisebot is going down [+]"
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # restart the script indefinitely
 def main():
-    os.execv(sys.executable, ['python2'] + sys.argv)
+    print "(noisebot)(reboot) executing new process."
+    os.execv(sys.executable, ['python'] + ['./noisebot.py'] + ['NOARGV'])
+    wait(0.25)
+    print "(noisebot)(reboot) [+]"
 
-if __name__ == "__main__":
-    main()
+main()
