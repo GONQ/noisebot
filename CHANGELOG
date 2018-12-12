@@ -1,8 +1,25 @@
+CHANGELOG for Bitmessage NOISEBOT
+=================================
+
+[https://github.com/gonq/noisebot]
+
+2008.12.12
+==========
+
+[config] Altered the random algorithm to have more variation in round durations.
+
+[test] Set up test script to check time averages. Mean swing averages OK.
+
+[linux binary] Updated Linux binary. Zero dependencies to run.
+
 2018.12.10
+==========
 
 [bugfix] The subprocess.call method in Bitmessage does some kind of blocking on apinotifypath scripts. When the called script sleeps (time.sleep()) it gums up the PyBitmessage proof of work mechanism. Messages were taking a long time to send. In this version this problem is fixed. When noisebot is called by PyBitmessage, the noisebot checks the arguments and spawns a new thread in a shell. The spawning instance exits so the new spawn runs independently without blocking.
 
-[code cleanup] removed some redundant functions and comments. Improved the stdout messages for future debugging.
+[code cleanup] Removed some redundant functions and comments. Improved the stdout messages for future debugging.
 
-[fine tuning] fine tuned the timing of pauses between message generations.
+[fine tuning] Fine tuned the timing of pauses between message generations.
+
+[linux binary] Added Linux binary to the repository. Zero dependencies to run.
 

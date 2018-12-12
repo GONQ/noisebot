@@ -54,7 +54,7 @@ print sys.argv
 
 if "NOARGV" not in sys.argv:
     import subprocess as spawn
-    boot = spawn.Popen('./noisebot.py NOARGV', shell=True) #, stdout=spawn.PIPE, stderr=spawn.PIPE)
+    boot = spawn.Popen(__file__ + ' NOARGV', shell=True) #, stdout=spawn.PIPE, stderr=spawn.PIPE)
     print "(noisebot)(bitmessage) apinotify path call - restarting in shell."
     print "(noisebot)(noargv)(spawn)", str(boot)
     wait(0.25)
@@ -64,7 +64,7 @@ if "NOARGV" not in sys.argv:
 
 if not os.path.isfile("bitmessagemain.py"):
     print "(noisebot)(error) could not find 'bitmessagemain.py.'"
-    print "(noisebot)(error) noisebot.py must be in bitmessage /src/ directory to run."
+    print "(noisebot)(error) " + __file__ + " must be in bitmessage /src/ directory to run."
     print "(noisebot)(error) cannot proceed. exiting."
     die()
 
@@ -121,7 +121,16 @@ def unlock():
 
 def waitlock():
     sched_time = time.time()
-    secs = rnd(90, 360)
+    losec = 0
+    hisec = 0
+    roundsec = rnd(1, 27)
+    for x in range(0, roundsec):
+        minsec = rnd(1, 9)
+        maxsec = rnd(10, 108)
+        losec += minsec
+        hisec += maxsec
+    print "(noisebot)(losec, hisec) ", losec, hisec
+    secs = rnd(losec, hisec)
     sched_time += secs
     sched_time += 60
     timelock(sched_time)
@@ -661,7 +670,7 @@ print "(noisebot)(finish) : noisebot is going down [+]"
 # restart the script indefinitely
 def main():
     print "(noisebot)(reboot) executing new process."
-    os.execv(sys.executable, ['python'] + ['./noisebot.py'] + ['NOARGV'])
+    os.execv(sys.executable, ['python'] + [__file__] + ['NOARGV'])
     wait(0.25)
     print "(noisebot)(reboot) [+]"
 
